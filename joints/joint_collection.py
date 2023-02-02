@@ -7,7 +7,7 @@ import collections
 
 class JointCollection():
 
-    def __init__(self, joints: Dict[any, np.ndarray], connections: List[Tuple[any, any]]=None) -> None:
+    def __init__(self, joints: Dict[any, np.ndarray], connections: List[Tuple[any, any]]) -> None:
         """Creates a new JointCollection.
 
         A Joint collection is a utility class intended to assist in calculating forward kinematics.
@@ -18,7 +18,7 @@ class JointCollection():
         of rotation (normal vector).
         Args:
             joints (Dict[any, np.ndarray]): Mapping of keys to xyz positions.
-            connections (List[Tuple[any, any]], optional): Connections between the joints. Defaults to None.
+            connections (List[Tuple[any, any]], optional): Connections between the joints.
         """
         self.joints = {joint: set() for joint in joints.keys()}
         self.connections = connections
@@ -35,9 +35,6 @@ class JointCollection():
                 self.joint_parents[joint2] = joint1
                 self.lengths[joint1][joint2] = np.linalg.norm(self.pos[joint2] - self.pos[joint1])
 
-    def add_connection(self, joint1, joint2):
-        self.joints[joint1][joint2] = True
-    
     def __getitem__(self, joints: Union[any, Tuple[any, any, any]]) -> Union[np.ndarray, R]:
         """Gets either a position or angle.
 
