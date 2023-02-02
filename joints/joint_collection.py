@@ -38,14 +38,14 @@ class JointCollection():
     def __getitem__(self, joints: Union[any, Tuple[any, any, any]]) -> Union[np.ndarray, R]:
         """Gets either a position or angle.
 
-        If given a tuple of size 3, this will return the angle of the joint described by 
+        If given a tuple of size 3, this will return the quaternion of the joint described by 
         the dictionary keys.
         If given a single dictionary key this will return the xyz position of the key.
         Args:
-            joints (Union[any, Tuple[any, any, any]]): _description_
+            joints (Union[any, Tuple[any, any, any]]): A single dict key or a tuple of 3.
 
         Returns:
-            Union[np.ndarray, R]: _description_
+            Union[np.ndarray, R]: The position or quaternion.
         """
         if joints in self.pos.keys():
             return self.pos[joints]
