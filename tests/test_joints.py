@@ -31,7 +31,7 @@ def test_solve_for_pos():
     theta = np.arccos(np.dot(vec1, vec2) / (norm(vec1) * norm(vec2)))
 
     length = np.linalg.norm(vec2)
-    pos = jc.solve_for_pos(joint1="a",
+    pos = jc.solve_for_joint_pos(joint1="a",
                            joint2="b",
                            theta=theta,
                            axis=axis,
@@ -49,7 +49,7 @@ def test_get_downstream_angles():
 
     angles = jc.get_downstream_angles("a")
 
-    assert np.allclose(angles[("a", "b", "c")][0], expected)
+    assert np.allclose(2 * np.arccos(angles[("a", "b", "c")].as_quat()[-1]), expected)
 
 def get_rotation(a,b,c, theta, jc):
     vec1 = jc.pos[a] - jc.pos[b]
@@ -236,3 +236,5 @@ def test_setitem_downstream_random():
         updated_angles = jc.get_all_angles()
         del updated_angles[("a", "b", "c")]
         assert all([np.allclose(np.arccos(v.as_quat()[-1]), np.arccos(updated_angles[k].as_quat()[-1])) for k, v in og_angles.items()])
+
+# test_setitem_downstream_90d()

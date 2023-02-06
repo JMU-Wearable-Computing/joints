@@ -58,7 +58,33 @@ class JointCollection():
             xyz = np.cross(vec1, vec2)
             w = np.sqrt(norm(vec1)**2 * norm(vec2)**2) + np.dot(vec1, vec2)
             return R.from_quat([*xyz, w])
+    
+    def rotate_about_axis(self, a, b, axis, theta):
+        # Save current angles
+        angles = self.get_downstream_angles(b)
 
+        axis = axis / norm(axis)
+        vec_to_rotate = self.pos[b] - self.pos[a]
+
+        self.pos[b] = self.solve_for_pos(vec_to_rotate, theta, axis) + self.pos[a]
+
+        # Now we need to update positions of downstream joints
+        # to be consistant with their og angles
+        # angles is an ordered dict so dependecies should be in correct order
+        for angle, _ in angles.items():
+            joint1, joint2, joint3 = angle
+
+            vec = self.pos[joint3] - self.pos[a]
+            relative = self.solve_for_pos(vec, theta, axis)
+            self.pos[joint3] = relative + self.pos[a]
+
+    def set_about_axis(self, a, b, c, axis, theta):
+
+        axis = axis / norm(axis)
+        curr_theta = np.arccos(self[a,b,c].as_quat()[-1]) * 2
+        theta_to_rotate = theta - curr_theta
+        self.rotate_about_axis(b, c, axis, theta_to_rotate)
+ 
     def __setitem__(self, joints: Tuple[str], theta: int):
         """Updates the given angle and all downstream positions.
 
@@ -71,35 +97,14 @@ class JointCollection():
         """
         joint1, joint2, joint3 = joints
 
-        # Save current angles
-        angles = self.get_downstream_angles(joint3)
-        og_pos3 = self.pos[joint3]
-
         # Calculate vec1/vec2 and the axis of rotation
         vec1 = self.pos[joint1] - self.pos[joint2]
         vec2 = self.pos[joint3] - self.pos[joint2]
         axis = np.cross(vec1, vec2)
         axis = axis / norm(axis)
+        self.set_about_axis(joint1, joint2, joint3, axis, theta)
 
-        self.pos[joint3] = self.solve_for_pos(joint1, joint2, theta, axis, self.lengths[joint2][joint3])
-        translation =  self.pos[joint3] - og_pos3 
-
-        # Now we need to update positions of downstream joints
-        # to be consistant with their og angles
-        # angles is an ordered dict so dependecies should be in correct order
-        for angle, (theta, _) in angles.items():
-            joint1, joint2, joint3 = angle
-
-            # We must translate vec2 by the same amount vec1 was in a prev iteration.
-            # This is so that we can get a correct updated axis of rotation
-            vec1 = self.pos[joint1] - self.pos[joint2]
-            vec2 = self.pos[joint3] - self.pos[joint2] + translation
-            new_axis = np.cross(vec1, vec2)
-            new_axis = new_axis / norm(new_axis)
-
-            self.pos[joint3] = self.solve_for_pos(joint1, joint2, theta, new_axis, self.lengths[joint2][joint3])
-
-    def solve_for_pos(self, joint1: str, joint2: str, theta: int, axis: np.ndarray, length:int): 
+    def solve_for_joint_pos(self, joint1: str, joint2: str, theta: int, axis: np.ndarray, length:int): 
         """Solves for position using quaternions.
 
         Given we have a system with 3 points j1, j2, j3 which make vectors 
@@ -119,16 +124,18 @@ class JointCollection():
         """
         pos1 = self.pos[joint1]
         pos2 = self.pos[joint2]
-
         parent = pos1 - pos2
-        unit_parent = parent / np.linalg.norm(parent)
-        q1 = R.from_quat([*unit_parent, 0])
+        parent = parent / norm(parent)
+        return self.solve_for_pos(parent, theta, axis) * length + pos2
+
+    def solve_for_pos(self, vec: np.ndarray, theta: int, axis: np.ndarray): 
+        q1 = R.from_quat([*vec, 0])
         q2 = R.from_quat([*(axis * np.sin(theta / 2)), np.cos(theta/2)])
         q2_conj = R.from_quat(q2.as_quat() * np.array([-1, -1, -1, 1]))
 
         q3 = q2 * q1 * q2_conj
 
-        return q3.as_quat()[:3] * length + pos2
+        return q3.as_quat()[:3] * norm(vec)
 
     def get_downstream_angles(self, s) -> Dict[Tuple[str, str, str], Tuple[int, np.ndarray]]:            
         """DFS to get all downstream angles.
@@ -160,12 +167,7 @@ class JointCollection():
 
                     # parent is only none if it is the waist node
                     if parent is not None:
-                        vec1 = self.pos[parent] - self.pos[s]
-                        vec2 = self.pos[child] - self.pos[s]
-                        angle = self.find_arccos_angle(vec1, vec2)
-                        axis = np.cross(vec1, vec2)
-                        axis = axis / norm(axis)
-                        angles[(parent, s, child)] = (angle, axis)
+                        angles[(parent, s, child)] = self[parent, s, child] 
 
                     stack.append(child)
         return angles
