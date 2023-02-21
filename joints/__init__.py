@@ -1,1 +1,1 @@
-from joints.joint_collection import JointCollection
+from joints.joint_collection import *

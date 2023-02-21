@@ -1,4 +1,5 @@
 from joints import JointCollection
+import joints as j
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from numpy.linalg import norm
@@ -45,7 +46,7 @@ def test_get_downstream_angles():
     vec1 = joints["a"] - joints["b"]
     vec2 = joints["c"] - joints["b"]
     # rot = R.align_vectors(vec1[None, :], vec2[None, :])[0]
-    expected = jc.find_arccos_angle(vec1, vec2)
+    expected = j.arccos_angle(vec1, vec2)
 
     angles = jc.get_downstream_angles("a")
 
@@ -256,14 +257,14 @@ def test_setitem_downstream_90d_diff_axis():
     axis2 = np.array([0, 1, 0])
     theta = (np.pi * 90) / 180
 
-    q = jc.to_quat(axis1, theta)
+    q = j.to_quat(axis1, theta)
     jc.set_about_lcs("b", "c", axis1, axis2, theta)
-    vec = jc.proj_on_axis("b", "c", axis1)
+    vec = j.proj_to_plane(jc["c"] - jc["b"], axis1)
     print(vec)
     print(axis2)
 
-    theta = jc.find_arccos_angle(vec, axis2)
-    angle = jc.to_quat(axis1, theta)
+    theta = j.arccos_angle(vec, axis2)
+    angle = j.to_quat(axis1, theta)
 
     assert (np.allclose(angle.as_quat(), q.as_quat())
             or np.allclose(angle.as_quat(), -1 * q.as_quat()))
@@ -289,14 +290,14 @@ def test_setitem_downstream_181d_diff_axis():
     axis2 = np.array([0, 1, 0])
     theta = (np.pi * 181) / 180
 
-    q = jc.to_quat(axis1, theta)
+    q = j.to_quat(axis1, theta)
     jc.set_about_lcs("b", "c", axis1, axis2, theta)
-    vec = jc.proj_on_axis("b", "c", axis1)
+    vec = j.proj_to_plane(jc["c"] - jc["b"], axis1)
     print(vec)
     print(axis2)
 
-    theta = jc.find_signed_angle(vec, axis2)
-    angle = jc.to_quat(axis1, theta)
+    theta = j.find_signed_angle(vec, axis2)
+    angle = j.to_quat(axis1, theta)
 
     assert (np.allclose(angle.as_quat(), q.as_quat())
             or np.allclose(angle.as_quat(), -1 * q.as_quat()))
@@ -327,12 +328,12 @@ def test_setitem_downstream_random_diff_axis():
 
         theta = 2 * np.pi * rng.random() 
 
-        q = jc.to_quat(axis1, theta)
+        q = j.to_quat(axis1, theta)
         jc.set_about_lcs("b", "c", axis1, axis2, theta)
-        vec = jc.proj_on_axis("b", "c", axis1)
+        vec = j.proj_to_plane(jc["c"] - jc["b"], axis1)
 
-        theta = jc.find_signed_angle(vec, axis2, axis1)
-        angle = jc.to_quat(axis1, theta)
+        theta = j.find_signed_angle(vec, axis2, axis1)
+        angle = j.to_quat(axis1, theta)
 
         assert (np.allclose(angle.as_quat(), q.as_quat())
                 or np.allclose(angle.as_quat(), -1 * q.as_quat()))
