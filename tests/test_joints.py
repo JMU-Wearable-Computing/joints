@@ -149,6 +149,7 @@ def test_setitem_downstream_181d():
     q = get_rotation("a", "b", "c", theta, jc)
     jc["a", "b", "c"] = theta
 
+    #[ 0.          0.         -0.38268343  0.92387953]
     angle = jc[("a", "b", "c")]
 
     assert (np.allclose(angle.as_quat(), q.as_quat())
@@ -237,4 +238,108 @@ def test_setitem_downstream_random():
         del updated_angles[("a", "b", "c")]
         assert all([np.allclose(np.arccos(v.as_quat()[-1]), np.arccos(updated_angles[k].as_quat()[-1])) for k, v in og_angles.items()])
 
-# test_setitem_downstream_90d()
+
+def test_setitem_downstream_90d_diff_axis():
+    joints = {"a": np.array([-1,0,0]),
+              "b": np.array([0,0,0]),
+              "c": np.array([1,1,0]),
+              "d": np.array([-1,-1,-1]),
+              "e": np.array([-2,-1,-2]),
+              "f": np.array([-1,0,-1])}
+    connections = [("a", "b"), ("b", "c"), ("c", "d"), ("c", "e"), ("e", "f")]
+
+    jc = JointCollection(joints, connections)
+    og_angles = jc.get_all_angles()
+    del og_angles[("a", "b", "c")]
+
+    axis1 = np.array([1, 0, -1])
+    axis2 = np.array([0, 1, 0])
+    theta = (np.pi * 90) / 180
+
+    q = jc.to_quat(axis1, theta)
+    jc.set_about_lcs("b", "c", axis1, axis2, theta)
+    vec = jc.proj_on_axis("b", "c", axis1)
+    print(vec)
+    print(axis2)
+
+    theta = jc.find_arccos_angle(vec, axis2)
+    angle = jc.to_quat(axis1, theta)
+
+    assert (np.allclose(angle.as_quat(), q.as_quat())
+            or np.allclose(angle.as_quat(), -1 * q.as_quat()))
+
+    updated_angles = jc.get_all_angles()
+    del updated_angles[("a", "b", "c")]
+    assert all([np.allclose(np.arccos(v.as_quat()[-1]), np.arccos(updated_angles[k].as_quat()[-1])) for k, v in og_angles.items()])
+
+def test_setitem_downstream_181d_diff_axis():
+    joints = {"a": np.array([-1,0,0]),
+              "b": np.array([0,0,0]),
+              "c": np.array([1,1,0]),
+              "d": np.array([-1,-1,-1]),
+              "e": np.array([-2,-1,-2]),
+              "f": np.array([-1,0,-1])}
+    connections = [("a", "b"), ("b", "c"), ("c", "d"), ("c", "e"), ("e", "f")]
+
+    jc = JointCollection(joints, connections)
+    og_angles = jc.get_all_angles()
+    del og_angles[("a", "b", "c")]
+
+    axis1 = np.array([1, 0, -1])
+    axis2 = np.array([0, 1, 0])
+    theta = (np.pi * 181) / 180
+
+    q = jc.to_quat(axis1, theta)
+    jc.set_about_lcs("b", "c", axis1, axis2, theta)
+    vec = jc.proj_on_axis("b", "c", axis1)
+    print(vec)
+    print(axis2)
+
+    theta = jc.find_signed_angle(vec, axis2)
+    angle = jc.to_quat(axis1, theta)
+
+    assert (np.allclose(angle.as_quat(), q.as_quat())
+            or np.allclose(angle.as_quat(), -1 * q.as_quat()))
+
+    updated_angles = jc.get_all_angles()
+    del updated_angles[("a", "b", "c")]
+    assert all([np.allclose(np.arccos(v.as_quat()[-1]), np.arccos(updated_angles[k].as_quat()[-1])) for k, v in og_angles.items()])
+
+def test_setitem_downstream_random_diff_axis():
+    for i in range(1000):
+        joints = {"a": rng.random(3),
+                "b": rng.random(3),
+                "c": rng.random(3),
+                "d": rng.random(3),
+                "e": rng.random(3),
+                "f": rng.random(3)}
+        connections = [("a", "b"), ("b", "c"), ("c", "d"), ("c", "e"), ("e", "f")]
+
+        jc = JointCollection(joints, connections)
+        og_angles = jc.get_all_angles()
+        del og_angles[("a", "b", "c")]
+
+        # Make two random orthogonal vectors
+        axis1 = np.array(rng.random(3))
+        axis1 = axis1 / np.linalg.norm(axis1)
+        axis2 = np.cross(np.array(rng.random(3)), axis1)
+        axis2 = axis2 / norm(axis2)
+
+        theta = 2 * np.pi * rng.random() 
+
+        q = jc.to_quat(axis1, theta)
+        jc.set_about_lcs("b", "c", axis1, axis2, theta)
+        vec = jc.proj_on_axis("b", "c", axis1)
+
+        theta = jc.find_signed_angle(vec, axis2, axis1)
+        angle = jc.to_quat(axis1, theta)
+
+        assert (np.allclose(angle.as_quat(), q.as_quat())
+                or np.allclose(angle.as_quat(), -1 * q.as_quat()))
+
+        updated_angles = jc.get_all_angles()
+        del updated_angles[("a", "b", "c")]
+        assert all([np.allclose(np.arccos(v.as_quat()[-1]), np.arccos(updated_angles[k].as_quat()[-1])) for k, v in og_angles.items()])
+
+if __name__ == "__main__":
+    test_setitem_downstream_181d_diff_axis()
