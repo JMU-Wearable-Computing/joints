@@ -59,6 +59,25 @@ class JointCollection():
             w = np.sqrt(norm(vec1)**2 * norm(vec2)**2) + np.dot(vec1, vec2)
             return R.from_quat([*xyz, w])
     
+    def proj_on_axis(self, a, b, axis):
+        axis = axis / norm(axis)
+        vec = self.pos[b] - self.pos[a]
+        vec = vec / norm(vec)
+        proj = np.dot(vec, axis) * axis
+        plane_proj = vec - proj
+        return plane_proj
+
+    def get_axis_proj(self, a, b, axis):
+        axis = axis / norm(axis)
+        vec = self.pos[b] - self.pos[a]
+        vec = vec / norm(vec)
+        proj = np.dot(vec, axis) * axis
+        return proj
+
+    def rotate_arbitrary_about_axis(self, vec, axis, theta):
+        axis = axis / norm(axis)
+        return self.solve_for_pos(vec, theta, axis)
+        
     def rotate_about_axis(self, a, b, axis, theta):
         # Save current angles
         angles = self.get_downstream_angles(b)
@@ -77,6 +96,15 @@ class JointCollection():
             vec = self.pos[joint3] - self.pos[a]
             relative = self.solve_for_pos(vec, theta, axis)
             self.pos[joint3] = relative + self.pos[a]
+    
+    def set_about_lcs(self, a, b, rot_axis, axis2, theta):
+        assert np.isclose(np.dot(rot_axis, axis2), 0, atol=1e15)
+        vec = self.proj_on_axis(a, b, rot_axis)
+
+        curr_theta = self.find_signed_angle(vec, axis2, rot_axis)
+        theta_to_rotate = theta - curr_theta
+
+        self.rotate_about_axis(a, b, rot_axis, theta_to_rotate)
 
     def set_about_axis(self, a, b, c, axis, theta):
 
@@ -130,7 +158,7 @@ class JointCollection():
 
     def solve_for_pos(self, vec: np.ndarray, theta: int, axis: np.ndarray): 
         q1 = R.from_quat([*vec, 0])
-        q2 = R.from_quat([*(axis * np.sin(theta / 2)), np.cos(theta/2)])
+        q2 = self.to_quat(axis, theta) 
         q2_conj = R.from_quat(q2.as_quat() * np.array([-1, -1, -1, 1]))
 
         q3 = q2 * q1 * q2_conj
@@ -173,7 +201,28 @@ class JointCollection():
         return angles
 
     def find_arccos_angle(self, vec1, vec2):
-        return np.arccos(np.dot(vec1, vec2) / (norm(vec1) * norm(vec2)))
+        normalized_dot = np.dot(vec1, vec2) / (norm(vec1) * norm(vec2))
+        if normalized_dot > 1:
+            normalized_dot = 1
+        if normalized_dot < -1:
+            normalized_dot = -1
+        return np.arccos(normalized_dot)
+    
+    def find_signed_angle(self, vec1, vec2, axis=None):
+        if axis is None:
+            axis = np.cross(vec1, vec2)
+        arccos_theta = self.find_arccos_angle(vec1, vec2) 
+        pos = self.rotate_arbitrary_about_axis(vec2, axis, arccos_theta)
+        neg = self.rotate_arbitrary_about_axis(vec2, axis, -1 * arccos_theta)
+        vs_pos, vs_neg = self.find_arccos_angle(vec1, pos), self.find_arccos_angle(vec1, neg)
+
+        if vs_pos < vs_neg:
+            return arccos_theta
+        else:
+            return -1 * arccos_theta
+    
+    def to_quat(self, axis, theta):
+        return R.from_quat([*(axis * np.sin(theta / 2)), np.cos(theta/2)])
     
     def get_all_angles(self):
         angles = {}
@@ -184,5 +233,7 @@ class JointCollection():
             j1 = self.joint_parents[j2]
             angles[(j1, j2, j3)] = self[j1, j2, j3]
         return angles
+
+
 
 
