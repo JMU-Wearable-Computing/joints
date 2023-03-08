@@ -18,13 +18,11 @@ def proj_to_plane(vec, axis):
 
 
 def to_quat(axis, theta):
-    print(theta)
-    print([*(axis * np.sin(theta / 2)), np.cos(theta/2)])
     return R.from_quat([*(axis * np.sin(theta / 2)), np.cos(theta/2)])
 
 
-def p_to_vec(a, b, c):
-    return a - b, c - b
+def p_to_vec(a, b):
+    return b - a
 
 
 def rotate_vector(vec: np.ndarray, axis: np.ndarray, theta: int):
@@ -50,6 +48,9 @@ def arccos_angle(vec1, vec2):
 def find_signed_angle(vec1, vec2, axis=None):
     if axis is None:
         axis = np.cross(vec1, vec2)
+    else:
+        vec1 = proj_to_plane(vec1, axis)
+        vec2 = proj_to_plane(vec2, axis)
     arccos_theta = arccos_angle(vec1, vec2)
     pos = rotate_vector(vec2, axis, arccos_theta)
     neg = rotate_vector(vec2, axis, -1 * arccos_theta)
@@ -158,8 +159,11 @@ class JointCollection():
             relative = rotate_vector(vec, axis, theta)
             self.pos[joint3] = relative + self.pos[a]
 
-    def set_about_lcs(self, a, b, rot_axis, axis2, theta):
-        assert np.isclose(np.dot(rot_axis, axis2), 0, atol=1e15)
+    def set_about_lcs(self, a, b, rot_axis, axis2, theta, proj_axis=False):
+        if proj_axis:
+            axis2 = proj_to_plane(axis2, rot_axis)
+        else:
+            assert np.isclose(np.dot(rot_axis, axis2), 0, atol=1e15)
         vec = proj_to_plane(self.pos[b] - self.pos[a], rot_axis)
 
         curr_theta = find_signed_angle(vec, axis2, rot_axis)
@@ -218,7 +222,7 @@ class JointCollection():
         return rotate_vector(parent, axis, theta) * length + pos2
 
     def get_downstream_angles(self, s) -> Dict[Tuple[str, str, str], Tuple[int, np.ndarray]]:
-        """DFS to get all downstream angles.
+        """BFS to get all downstream angles.
 
         The output starts with the root at the center of the joint. So the first joint is
         (parent(s), s, child(s))
@@ -235,8 +239,8 @@ class JointCollection():
         stack = []
         stack.append(s)
         while len(stack):
-            s = stack[-1]
-            stack.pop()
+            s = stack[0]
+            stack.pop(0)
 
             if s not in visited:
                 visited.add(s)
@@ -263,17 +267,92 @@ class JointCollection():
         return angles
 
 
-def Joint():
+class Joint():
 
-    def __init__(self, name, jc: JointCollection, joints: List = None):
+    def __init__(self, name, joints: Tuple = None, jc: JointCollection=None):
         self.name = name
         self.jc = jc
 
-        if isinstance(joints, collections.Sequence):
+        if joints is not None:
+            assert isinstance(joints, collections.Sequence)
             assert len(joints) == 3
-            self.joints = None
-
+            self.joints = joints
+    
+    def p_to_vec(self, a, b):
+        return self.jc[b] - self.jc[a]
+    
     def eval(self):
-        if self.joints is not None:
-            return self.jc[self.joints]
-        raise NotImplementedError
+        return {self.name: self.jc[tuple(self.joints)]}
+
+    def set_angle(self, theta):
+        self.jc[tuple(self.joints)] = theta
+    
+    def set_joint_collection(self, jc: JointCollection):
+        self.jc = jc
+
+
+class BallAndSocketJoint(Joint):
+
+    def __init__(self, name, joints, axis1, axis2, axis3="+", jc=None,
+                 angles_wanted={"forward-back": ("axis2", "axis1"), "up-down": ("axis3", "axis2")}):
+        super().__init__(name, jc=jc)
+
+        if joints is not None:
+            assert len(joints) == 2, "Only pass two joints for a ball and socket joints."
+        self._joints = joints
+        self._axis1 = axis1
+        self._axis2 = axis2
+        self._axis3 = axis3
+        self.angles_wanted = angles_wanted
+        self.axis_map = {"axis1": lambda: self.axis1,
+                         "axis2": lambda: self.axis2, 
+                         "axis3": lambda: self.axis3,
+                         "-axis1": lambda: -1 * self.axis1,
+                         "-axis2": lambda: -1 * self.axis2, 
+                         "-axis3": lambda: -1 * self.axis3
+                        }
+    @property
+    def joints(self):
+        return self.standardize_vec(self._joints)
+
+    @property
+    def axis1(self):
+        axis1 = self.standardize_vec(self._axis1)
+        return axis1 / norm(axis1)
+
+    @property
+    def axis2(self):
+        axis2 =  self.standardize_vec(self._axis2)
+        return axis2 / norm(axis2)
+
+
+    @property
+    def axis3(self):
+        if self._axis3 == "+":
+            axis3 = np.cross(self.p_to_vec(*self._axis1),
+                            self.p_to_vec(*self._axis2))
+        elif self._axis3 == "-":
+            axis3 = -1 * np.cross(self.p_to_vec(*self._axis1),
+                                 self.p_to_vec(*self._axis2))
+        else:
+            axis3 = self.standardize_vec(self._axis3)
+        return axis3 / norm(axis3)
+
+    def standardize_vec(self, vec):
+        if (isinstance(vec, collections.Sequence)
+            and isinstance(vec[0], str)
+            and len(vec) == 2):
+            return self.p_to_vec(*vec) 
+        elif (isinstance(vec, collections.Sequence) or isinstance(vec, np.ndarray)) and len(vec) == 3:
+            return vec
+        else:
+            raise Exception(f"vector not in correct fromat: {vec}")
+    
+    def axis_angle(self, rot_axis, axis2):
+        angle = find_signed_angle(self.joints, axis2, axis=rot_axis)
+        return angle
+    
+    def eval(self):
+        return {k: self.axis_angle(self.axis_map[rot_axis](), self.axis_map[start_vec]())
+                for k, (rot_axis, start_vec) in self.angles_wanted.items()}
+    
