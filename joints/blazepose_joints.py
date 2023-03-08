@@ -113,13 +113,18 @@ JOINTS = [BLAZE_LEFT_LEG, BLAZE_RIGHT_LEG, BLAZE_BACK,
           BLAZE_RIGHT_KNEE, BLAZE_RIGHT_ELBOW, BLAZE_LEFT_ELBOW]
 
 
-def joint_factory(jc: j.JointCollection):
+def joint_factory(jc: j.JointCollection=None):
     joints = []
     for joint in JOINTS:
         joint = joint()
-        joint.set_joint_collection(jc)
+        if jc is not None:
+            joint.set_joint_collection(jc)
         joints.append(joint)
     return joints
+
+def set_joint_collection(joints, jc: j.JointCollection):
+    for joint in joints:
+        joint.set_joint_collection(jc)
 
 
 def get_angles(joints):
