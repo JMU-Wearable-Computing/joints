@@ -281,7 +281,15 @@ class Joint():
     def p_to_vec(self, a, b):
         return self.jc[b] - self.jc[a]
     
-    def eval(self):
+    def angle(self):
+        j0 = self.jc[self.joints[0]]
+        j1 = self.jc[self.joints[1]]
+        j2 = self.jc[self.joints[2]]
+        vec1 = j0 - j1
+        vec2 = j2 - j1
+        return {self.name: arccos_angle(vec1, vec2)}
+
+    def rotation(self):
         return {self.name: self.jc[tuple(self.joints)]}
 
     def set_angle(self, theta):
@@ -351,8 +359,16 @@ class BallAndSocketJoint(Joint):
     def axis_angle(self, rot_axis, axis2):
         angle = find_signed_angle(self.joints, axis2, axis=rot_axis)
         return angle
+
+    def axis_rotation(self, rot_axis, axis2):
+        angle = find_signed_angle(self.joints, axis2, axis=rot_axis)
+        return to_quat(rot_axis, angle)
     
-    def eval(self):
-        return {k: self.axis_angle(self.axis_map[rot_axis](), self.axis_map[start_vec]())
+    def angle(self):
+        return {f"{self.name}_{k}": self.axis_angle(self.axis_map[rot_axis](), self.axis_map[start_vec]())
+                for k, (rot_axis, start_vec) in self.angles_wanted.items()}
+    
+    def rotation(self):
+        return {f"{self.name}_{k}": self.axis_rotation(self.axis_map[rot_axis](), self.axis_map[start_vec]())
                 for k, (rot_axis, start_vec) in self.angles_wanted.items()}
     

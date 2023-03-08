@@ -122,13 +122,18 @@ def joint_factory(jc: j.JointCollection=None):
         joints.append(joint)
     return joints
 
+
 def set_joint_collection(joints, jc: j.JointCollection):
     for joint in joints:
         joint.set_joint_collection(jc)
 
 
 def get_angles(joints):
-    return {k: v for d in joints for k, v in d.items()}
+    return {k: v for d in joints for k, v in d.angle.items()}
+
+
+def get_rotations(joints):
+    return {k: v for d in joints for k, v in d.rotation.items()}
 
 
 def frame_to_dict(frame):
