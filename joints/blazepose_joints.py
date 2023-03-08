@@ -94,7 +94,7 @@ BLAZE_RIGHT_LEG = lambda: j.BallAndSocketJoint("right_leg",
 class BlazeposeBack(j.BallAndSocketJoint):
 
     def __init__(self): 
-        super().__init__("hip", None, axis1=["right_hip", "left_hip"], axis2=np.array([0, 1, 0]),
+        super().__init__("back", None, axis1=["right_hip", "left_hip"], axis2=np.array([0, 1, 0]),
                        angles_wanted={"forward-back": ("axis1", "axis2")})
     
     @property
@@ -208,9 +208,13 @@ def bfs_fix_pose(root, graph, frame, lengths, new_frame):
                 queue.append((child, accum + diff))
 
 
-def joint_collection_from_landmarks(landmarks):
+def jc_from_landmarks(landmarks):
     frame = frame_to_dict(landmarks)
-    j.JointCollection(frame, BLAZEPOSE_CONNECTIONS)
+    return j.JointCollection(frame, BLAZEPOSE_CONNECTIONS)
+
+def jc_from_landmarks_list(landmarks_list):
+    frames = frames_to_dicts(landmarks_list)
+    return [j.JointCollection(frame, BLAZEPOSE_CONNECTIONS) for frame in frames]
 
 def lengths_from_landmarks(landmarks):
     frame = frame_to_dict(landmarks)

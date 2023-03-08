@@ -1,2 +1,2 @@
 from joints.joint_collection import *
-from joints.blazepose_joints import *
+import joints.blazepose_joints as blaze
