@@ -91,7 +91,7 @@ BLAZE_RIGHT_LEG = lambda: j.BallAndSocketJoint("right_leg",
                                      axis3="-",
                                      angles_wanted={"left-right": ("axis3", "axis2"), "forward-back": ("axis1", "axis2")})
 
-class BlazeposeHip(j.BallAndSocketJoint):
+class BlazeposeBack(j.BallAndSocketJoint):
 
     def __init__(self): 
         super().__init__("hip", None, axis1=["right_hip", "left_hip"], axis2=np.array([0, 1, 0]),
@@ -106,9 +106,9 @@ class BlazeposeHip(j.BallAndSocketJoint):
         vec = end - start
         return vec
     
-BLAZE_HIP = lambda: BlazeposeHip()
+BLAZE_BACK = lambda: BlazeposeBack()
 
-JOINTS = [BLAZE_LEFT_LEG, BLAZE_RIGHT_LEG, BLAZE_HIP,
+JOINTS = [BLAZE_LEFT_LEG, BLAZE_RIGHT_LEG, BLAZE_BACK,
           BLAZE_LEFT_SHOULDER, BLAZE_RIGHT_SHOULDER, BLAZE_LEFT_KNEE,
           BLAZE_RIGHT_KNEE, BLAZE_RIGHT_ELBOW, BLAZE_LEFT_ELBOW]
 

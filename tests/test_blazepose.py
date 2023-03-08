@@ -19,7 +19,7 @@ if __name__ == "__main__":
     # plt.show()
     frame = jj[56]
     jc = j.JointCollection(j.frame_to_dict(frame), j.BLAZEPOSE_CONNECTIONS)
-    s = j.BLAZE_HIP()
+    s = j.BLAZE_BACK()
     s.set_joint_collection(jc)
     # print(jc["left_shoulder"])
     # print(jc["left_hip"])
