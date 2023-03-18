@@ -87,7 +87,7 @@ def set_about_lcs(vec_to_rotate, rot_axis, axis2, theta):
 
 class JointCollection():
 
-    def __init__(self, joints: Dict[any, np.ndarray], connections: List[Tuple[any, any]]) -> None:
+    def __init__(self, joint_pos: Dict[any, np.ndarray], connections: List[Tuple[any, any]]) -> None:
         """Creates a new JointCollection.
 
         A Joint collection is a utility class intended to assist in calculating forward kinematics.
@@ -100,21 +100,30 @@ class JointCollection():
             joints (Dict[any, np.ndarray]): Mapping of keys to xyz positions.
             connections (List[Tuple[any, any]], optional): Connections between the joints.
         """
-        self.joints = {joint: set() for joint in joints.keys()}
         self.connections = connections
-        self.joint_parents = {joint: None for joint in joints.keys()}
-        self.pos = {joint: pos for joint, pos in joints.items()}
+        self.pos = joint_pos
+        # self.pos = {joint: pos for joint, pos in joint_pos.items()}
 
-        self.lengths = {joint: dict() for joint in joints.keys()}
+        self._make_extra_properties_called = False
+        self._joint_children = None
+        self._joint_parents = None
+    
+    @property
+    def joint_children(self):
+        if self._joint_children is None:
+            self._joint_children = {joint: set() for joint in self.pos.keys()}
+            for conn in self.connections:
+                self._joint_children[conn[0]].add(conn[1])
+        return self._joint_children
 
-        if connections is not None:
-            for conn in connections:
-                joint1 = conn[0]
-                joint2 = conn[1]
-                self.joints[joint1].add(joint2)
-                self.joint_parents[joint2] = joint1
-                self.lengths[joint1][joint2] = np.linalg.norm(
-                    self.pos[joint2] - self.pos[joint1])
+    @property
+    def joint_parents(self):
+        if self._joint_parents is None:
+            self._joint_parents = {joint: None for joint in self.pos.keys()}
+            for conn in self.connections:
+                self._joint_parents[conn[1]] = conn[0]
+        return self._joint_parents
+
 
     def __getitem__(self, joints: Union[any, Tuple[any, any, any]]) -> Union[np.ndarray, R]:
         """Gets either a position or angle.
@@ -128,6 +137,7 @@ class JointCollection():
         Returns:
             Union[np.ndarray, R]: The position or quaternion.
         """
+        print(joints)
         if joints in self.pos.keys():
             return self.pos[joints]
 
@@ -245,7 +255,7 @@ class JointCollection():
             if s not in visited:
                 visited.add(s)
 
-            for child in self.joints[s]:
+            for child in self.joint_children[s]:
                 if child not in visited:
                     parent = self.joint_parents[s]
 

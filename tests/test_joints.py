@@ -14,11 +14,9 @@ connections = [("a", "b"), ("b", "c")]
 def test_constructor():
     jc = JointCollection(joints, connections)
 
-    assert all([joint in jc.joints for joint in joints.keys()])
+    assert all([joint in jc.pos.keys() for joint in joints.keys()])
     assert all([jc.joint_parents[joint2] == joint1 for joint1, joint2 in connections])
     assert all([np.all(jc.pos[joint] == pos) for joint, pos in joints.items()])
-    assert all([np.all(jc.lengths[joint1][joint2] == np.linalg.norm(joints[joint1] - joints[joint2]))
-                for joint1, joint2 in connections])
 
 
 def test_solve_for_pos():
