@@ -102,9 +102,7 @@ class JointCollection():
         """
         self.connections = connections
         self.pos = joint_pos
-        # self.pos = {joint: pos for joint, pos in joint_pos.items()}
 
-        self._make_extra_properties_called = False
         self._joint_children = None
         self._joint_parents = None
     
@@ -137,7 +135,6 @@ class JointCollection():
         Returns:
             Union[np.ndarray, R]: The position or quaternion.
         """
-        print(joints)
         if joints in self.pos.keys():
             return self.pos[joints]
 
@@ -291,13 +288,17 @@ class Joint():
     def p_to_vec(self, a, b):
         return self.jc[b] - self.jc[a]
     
-    def angle(self):
+    def angle(self, degrees=False):
         j0 = self.jc[self.joints[0]]
         j1 = self.jc[self.joints[1]]
         j2 = self.jc[self.joints[2]]
         vec1 = j0 - j1
         vec2 = j2 - j1
-        return {self.name: arccos_angle(vec1, vec2)}
+
+        angle = arccos_angle(vec1, vec2)
+        if degrees:
+            angle = (angle * 180) / np.pi
+        return {self.name: angle}
 
     def rotation(self):
         return {self.name: self.jc[tuple(self.joints)]}
@@ -366,16 +367,22 @@ class BallAndSocketJoint(Joint):
         else:
             raise Exception(f"vector not in correct fromat: {vec}")
     
-    def axis_angle(self, rot_axis, axis2):
+    def axis_angle(self, rot_axis, axis2, degrees=False):
         angle = find_signed_angle(self.joints, axis2, axis=rot_axis)
+        if degrees:
+            angle = (angle * 180) / np.pi
         return angle
 
     def axis_rotation(self, rot_axis, axis2):
         angle = find_signed_angle(self.joints, axis2, axis=rot_axis)
         return to_quat(rot_axis, angle)
     
-    def angle(self):
-        return {f"{self.name}_{k}": self.axis_angle(self.axis_map[rot_axis](), self.axis_map[start_vec]())
+    def angle(self, degrees=False):
+        def helper(rot_axis, start_vec):
+            return self.axis_angle(self.axis_map[rot_axis](),
+                                   self.axis_map[start_vec](),
+                                   degrees)
+        return {f"{self.name}_{k}": helper(rot_axis, start_vec)
                 for k, (rot_axis, start_vec) in self.angles_wanted.items()}
     
     def rotation(self):

@@ -1,7 +1,8 @@
 from typing import Dict
 import joints as j
 import numpy as np
-from copy import deepcopy
+from typing import List, Union, Dict, Tuple
+from scipy.spatial.transform import Rotation as R
 
 
 LANDMARKS = ["nose", "left_eye_inner", "left_eye", "left_eye_outer", 
@@ -44,7 +45,7 @@ def _make_landmarks_dict(z=True, vis=False):
             idx_l.append(idx + 2)
         if vis:
             idx_l.append(idx + 3)
-        idxs[landmark] = idx_l
+        idxs[landmark] = np.array(idx_l)
 
     return idxs
 
@@ -113,7 +114,17 @@ JOINTS = [BLAZE_LEFT_LEG, BLAZE_RIGHT_LEG, BLAZE_BACK,
           BLAZE_RIGHT_KNEE, BLAZE_RIGHT_ELBOW, BLAZE_LEFT_ELBOW]
 
 
-def joint_factory(jc: j.JointCollection=None):
+
+def joint_factory(jc: j.JointCollection=None) -> List[j.Joint]:
+    """Makes new joint objects.
+
+    Args:
+        jc (j.JointCollection, optional): If specified the joints
+        will have this jc set. Defaults to None.
+
+    Returns:
+        List[j.Joint]: The list of created joints.
+    """
     joints = []
     for joint in JOINTS:
         joint = joint()
@@ -123,21 +134,54 @@ def joint_factory(jc: j.JointCollection=None):
     return joints
 
 
-def set_joint_collection(joints, jc: j.JointCollection):
+def set_joint_collection(joints: List[j.Joint], jc: j.JointCollection) -> None:
+    """Sets the given joint collection on the list of joints.
+
+    Args:
+        joints (List[j.Joint]): List of joints to set the jc on.
+        jc (j.JointCollection): JC to set the joints to.
+    """
     for joint in joints:
         joint.set_joint_collection(jc)
 
 
-def get_angles(joints):
-    return {k: v for d in joints for k, v in d.angle.items()}
+def get_angles(joints: List[j.Joint], degrees: bool=False) -> Dict[any, float]:
+    """Calls .angle(degrees) on each joint and returns a merged dict.
+
+    Args:
+        joints (List[j.Joint]): The joint list.
+        degrees (bool, optional): If the angles should be in degrees.
+        If false it will be in radians. Defaults to False.
+
+    Returns:
+        Dict[any, float]: Merged dictionary of joints angles.
+    """
+    return {k: v for d in joints for k, v in d.angle(degrees).items()}
 
 
-def get_rotations(joints):
-    return {k: v for d in joints for k, v in d.rotation.items()}
+def get_rotations(joints: List[j.Joint]) -> Dict[any, R]:
+    """Calls .rotation() of each joints and returns a merged dict.
+
+    Args:
+        joints (List[j.Joint]): The list of joints to obtain the
+        rotations.
+
+    Returns:
+        Dict[any, R]: THe merged dictionary of joint rotations
+    """
+    return {k: v for d in joints for k, v in d.rotation().items()}
 
 
-def frame_to_dict(frame):
+def frame_to_dict(frame: np.array) -> Dict[str, np.ndarray]:
+    """Converts a single frame to a dictionary landmarks.
 
+    Args:
+        frame (np.array): Frame to convert to a dictionary.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary mapping landmarks
+        to coordinates.
+    """
     frame_dict = {}
     for landmark, idxs in LANDMARKS_TO_IDX.items():
         landmark_coords = frame[idxs]
@@ -147,7 +191,27 @@ def frame_to_dict(frame):
     return frame_dict
 
 
-def dict_to_frame(d):
+def frames_to_dicts(frames: List[np.ndarray]) -> List[Dict[str, np.ndarray]]:
+    """Converts a list of frames to a list of dicts.
+
+    Args:
+        frames (List[np.ndarray]): 
+
+    Returns:
+        List[Dict[str, np.ndarray]]: List of converted frames.
+    """
+    return [frame_to_dict(frame) for frame in frames]
+
+
+def dict_to_frame(d: Dict[str, np.ndarray]) -> np.ndarray:
+    """Converts a dictionary back to frame.
+
+    Args:
+        d (Dict[str, np.ndarray]): Dictionary to convert.
+
+    Returns:
+        np.ndarray: The converted frame.
+    """
     frame = []
     for landmark in LANDMARKS:
         v = [*d[landmark], 1.0]
@@ -157,66 +221,41 @@ def dict_to_frame(d):
     return np.array(frame)
 
 
-def frames_to_dicts(frames):
-    return [frame_to_dict(frame) for frame in frames]
+def jc_from_landmarks(landmarks: j.Landmarks) -> Union[j.JointCollection, List[j.JointCollection]]:
+    """_summary_
+
+    Args:
+        landmarks (j.Landmarks): Landmarks to use to make joint collection. 
+
+    Returns:
+        Union[j.JointCollection, List[j.JointCollection]]: _description_
+    """
+    landmarks = np.array(landmarks)
+
+    if (len(landmarks.shape) > 1
+        and 1 not in landmarks.shape):
+        frames = frames_to_dicts(landmarks)
+        return [j.JointCollection(frame, BLAZEPOSE_CONNECTIONS) for frame in frames]
+    elif (len(landmarks.shape) == 1
+            and landmarks.size == len(LANDMARKS) * 4):
+        frame = frame_to_dict(landmarks)
+        return j.JointCollection(frame, BLAZEPOSE_CONNECTIONS)
+    else:
+        raise Exception(f"""Landmarks passed as numpy array have 
+                            incompatiple shape {landmarks.shape}.
+                            They must be [{len(LANDMARKS) * 4}]
+                            or [n_frames, {len(LANDMARKS) * 4}]""")
 
 
-def fix_pose_avg(landmarks_avgs, lengths:Dict[str, Dict[str, int]]):
-    graph = deepcopy(j.BLAZEPOSE_GRAPH)
-    frame = j.frame_to_dict(landmarks_avgs)
-    graph["root"] = ["left_hip", "right_hip"]
+def lengths_from_landmarks(landmarks: j.Landmarks) -> Dict[str, Dict[str, float]]:
+    """Converts landmarks to lengths between connections.
 
-    lengths["root"] = {}
-    lengths["root"]["left_hip"] = lengths["left_hip"]["right_hip"] / 2
-    lengths["root"]["right_hip"] = lengths["left_hip"]["right_hip"] / 2
+    Args:
+        landmarks (j.Landmarks): Landmarks to extract lengths from.
 
-    new_frame = {k: np.copy(v) for k, v in frame.items()}
-    bfs_fix_pose("left_shoulder", graph, frame, lengths, new_frame)
-    bfs_fix_pose("right_shoulder", graph, frame, lengths, new_frame)
-    bfs_fix_pose("left_hip", graph, frame, lengths, new_frame)
-    bfs_fix_pose("right_hip", graph, frame, lengths, new_frame)
-
-    return dict_to_frame(new_frame)
-
-def bfs_fix_pose(root, graph, frame, lengths, new_frame):
-    visited = set()
-    parents = {root: None}
-
-    queue = []
-    queue.append((root, np.array([0, 0, 0])))
-    while len(queue):
-        joint, accum = queue[0]
-        queue.pop(0)
-
-        if joint not in visited:
-            visited.add(joint)
-
-        if joint not in graph.keys():
-            continue
-
-        for child in graph[joint]:
-            if child not in visited:
-                parents[child] = joint
-                og = frame[child] - frame[joint]
-                vec = og / np.linalg.norm(og)
-                vec = vec * lengths[joint][child]
-                diff = vec - og
-
-                new_pos = vec + frame[joint] + accum
-                new_frame[child] = new_pos
-
-                queue.append((child, accum + diff))
-
-
-def jc_from_landmarks(landmarks):
-    frame = frame_to_dict(landmarks)
-    return j.JointCollection(frame, BLAZEPOSE_CONNECTIONS)
-
-def jc_from_landmarks_list(landmarks_list):
-    frames = frames_to_dicts(landmarks_list)
-    return [j.JointCollection(frame, BLAZEPOSE_CONNECTIONS) for frame in frames]
-
-def lengths_from_landmarks(landmarks):
+    Returns:
+        Dict[str, float]: Dictionary mapping connections to lengths
+    """
     frame = frame_to_dict(landmarks)
     lengths = {landmark: {} for landmark in LANDMARKS}
     for conn in BLAZEPOSE_CONNECTIONS:
@@ -224,3 +263,69 @@ def lengths_from_landmarks(landmarks):
         joint2 = conn[1]
         lengths[joint1][joint2] = np.linalg.norm(frame[joint2] - frame[joint1])
     return lengths
+
+
+def get_all_angles_from_landmarks(landmarks: j.Landmarks, degrees: bool=False) \
+    -> Union[Dict[str, float], Dict[str, List[float]]]:
+    """Gets all angles from given landmarks.
+    If given a list of landmarks then it will return a dict of lists of angles 
+    mapping angles name to a list of angles from their respecitive landmarks.
+    If given a single landmark then it will return a dict of angle names to
+    a single float.
+
+    Args:
+        landmarks (j.Landmarks): Landmarks to get angles from
+        degrees (bool, optional): If to use degrees or radians. Defaults to False.
+
+    Returns:
+        Union[Dict[str, float], Dict[str, List[float]]]: Dict mapping angle names
+        to angle.
+    """
+    jcs = jc_from_landmarks(landmarks)
+    joints = joint_factory()
+
+    if isinstance(jcs, List):
+        set_joint_collection(joints, jcs[0])
+        angles = {k:[v] for k, v in get_angles(joints, degrees).items()}
+        for jc in jcs[1:]:
+            set_joint_collection(joints, jc)
+            curr = get_angles(joints, degrees)
+            for angle in angles.keys():
+                angles[angle].append(curr[angle])
+        return angles
+    else:
+        set_joint_collection(joints, jcs)
+        return get_angles(joints, degrees)
+
+
+def joints_from_landmarks(landmarks: j.Landmarks, return_jc=False) \
+    -> Union[List[List[j.Joint]], Tuple[List[List[j.Joint]], List[j.JointCollection]]]:
+    """Returns a list of joints from each landmark.
+
+    Args:
+        landmarks (j.Landmarks): Landmarks to make joints from. 
+        return_jc (bool, optional): If to return the joint collectsions for each joints.
+        Defaults to False.
+
+    Returns:
+        Union[List[List[j.Joint]], Tuple[List[List[j.Joint]], List[j.JointCollection]]]: 
+        The list of joints from each landmark and optionally the JC.
+    """
+    jcs = jc_from_landmarks(landmarks)
+
+    if isinstance(jcs, List):
+        all_joints = []
+        for jc in jcs:
+            joints = joint_factory()
+            set_joint_collection(joints, jc)
+            all_joints.append(all_joints)
+        if return_jc:
+            return all_joints, jcs
+        return all_joints
+
+    joints = joint_factory()
+    set_joint_collection(joints, jcs)
+    if return_jc:
+        return [joints], [jcs]
+    return [joints]
+
