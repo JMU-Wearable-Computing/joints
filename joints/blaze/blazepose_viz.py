@@ -56,6 +56,19 @@ def capture(window_name: str="blaze",
     -> Generator[Union[Tuple[List, List], Tuple[List, List, np.ndarray]]]:
     """Yields landmarks from blazepose from a video steam.
 
+    Example usage capturing from webcam:
+         for landmark, wlandmark in j.blaze.capture():
+            landmarks = np.array(landmarks)
+            angles_dict = j.blaze.get_all_angles_from_landmarks(landmarks, degrees=True)
+
+    Example usage with return_image=True:
+        for landmark, wlandmark, image in j.blaze.capture(return_image=True):
+            cv2.putText(image, "Go", (100, 200), cv2.FONT_HERSHEY_SIMPLEX, 8, 255, thickness=10)
+            cv2.imshow("blaze", image)
+
+            landmarks = np.array(landmarks)
+            angles_dict = j.blaze.get_all_angles_from_landmarks(landmarks, degrees=True)
+
     Args:
         window_name (str, optional): Name of the window. Defaults to "blaze".
         file_name (str, optional): Prefix of file to write recording to. Defaults to "last_recording".
@@ -131,6 +144,11 @@ def capture(window_name: str="blaze",
     wlandmark_file.close()
     cap.release()
     cv2.destroyWindow(window_name)
+    # Hack to make sure the window closes quickly
+    # Gives opencv2 more time to destroy window
+    for i in range (4):
+        cv2.waitKey(1)
+
 
 
 def convert_landmarks_to_protobuf(data):
