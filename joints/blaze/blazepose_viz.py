@@ -151,13 +151,21 @@ def capture(window_name: str="blaze",
 
 
 
-def convert_landmarks_to_protobuf(data):
-    assert isinstance(data, np.ndarray), "Data must be a numpy array"
+def convert_landmarks_to_protobuf(landmarks: np.ndarray):
+    """Converts landmarks to protobuf for blazepose vizualization.
 
-    if len(data.shape) == 1:
-        data = np.array([data])
+    Args:
+        data (np.ndarray): landmarks to process. 1d or 2d.
+
+    Returns:
+        protobuf: protobuf of landmarks.
+    """
+    assert isinstance(landmarks, np.ndarray), "Data must be a numpy array"
+
+    if len(landmarks.shape) == 1:
+        landmarks = np.array([landmarks])
     format_str = ""
-    for frame in data:
+    for frame in landmarks:
         for point in frame.reshape([-1, 4]):
             landmark = 'landmark {x: ' + str(point[0]) + ' y: ' + \
                     str(point[1]) + ' z: ' + str(point[2]) + ' visibility: ' + str(point[3]) + '} '
@@ -167,7 +175,25 @@ def convert_landmarks_to_protobuf(data):
     return landmark_list
 
 
-def vizualize(landmarks, image=None, name="Pose", wait=False):
+def vizualize(landmarks: np.ndarray,
+              image: np.ndarray=None,
+              name: str="Pose",
+              wait: bool=False,
+              show: bool=True):
+    """Vizualizes a single frame of landmarks
+    Uses the bulit in media pipe vizualiztiontool
+
+    Args:
+        landmarks (np.ndarray): single frame of landmarks
+        image (np.ndarray, optional): image to draw onto. Defaults to None.
+        If none a new image will be created.
+        name (str, optional): Name of window. Defaults to "Pose".
+        wait (bool, optional): If to wait for keyboard press to close. Defaults to False.
+        show (bool, optional): If to callse imshow the image. Defaults to False.
+
+    Returns:
+        np.ndarray: resulting image with vizalization.
+    """
     if isinstance(landmarks[0], float):
         landmarks = convert_landmarks_to_protobuf(landmarks)
 
@@ -184,15 +210,25 @@ def vizualize(landmarks, image=None, name="Pose", wait=False):
         landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
     )
 
-    cv2.imshow(name, image)
-    cv2.setWindowProperty(name, cv2.WND_PROP_TOPMOST, 1)
+    if show:
+        cv2.imshow(name, image)
+        cv2.setWindowProperty(name, cv2.WND_PROP_TOPMOST, 1)
     if wait:
         cv2.waitKey(0)
 
     return image
 
 
-def average_landmarks(landmarks):
+def average_landmarks(landmarks: np.ndarray) -> Dict[str, np.ndarray]:
+    """Averages landmarks and fixes the lengths.
+
+    Args:
+        landmarks (np.ndarray): 2D numpy array where
+        each row is a new frame.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary of average landmarks.
+    """
     landmarks_avg = np.mean(landmarks, axis=0)
     # Sum lengths over all connections
     lengths = j.blaze.lengths_from_landmarks(landmarks[0])
@@ -200,19 +236,35 @@ def average_landmarks(landmarks):
         curr = j.blaze.lengths_from_landmarks(landmarks[idx])
         for k1, d1 in lengths.items():
             if d1 is not None:
-                for k2, d2 in d1.items():
+                for k2, _ in d1.items():
                     d1[k2] += curr[k1][k2]
 
     # Averge lengths
     for k1, d1 in lengths.items():
-        if d2 is not None:
-            for k2, d2 in d1.items():
+        if d1 is not None:
+            for k2, _ in d1.items():
                 d1[k2] /= landmarks.shape[0]
     
     return j.blaze.fix_pose_avg(landmarks_avg, lengths)
 
 
-def fix_pose_avg(landmarks_avgs, lengths:Dict[str, Dict[str, int]]):
+def fix_pose_avg(landmarks_avgs: Dict[str, np.ndarray],
+                 lengths:Dict[str, Dict[str, int]]) -> np.ndarray:
+    """Fixes average pose lengths.
+    Taking averages messes up the lengths between segments,
+    this fixes it by scaling the connecetions by the correct length.
+    Only fixes arms and legs because that is easier to fix. The
+    torso does not usually not need as much fixing so that is not
+    implemented at this time.
+
+    Args:
+        landmarks_avgs (Dict[str, np.ndarray]): averaged landmarks.
+        lengths (Dict[str, Dict[str, int]]): wanted lengths between connections.
+
+    Returns:
+        np.ndarray: Fixed pose.
+    """
+
     graph = deepcopy(j.blaze.BLAZEPOSE_GRAPH)
     frame = j.blaze.frame_to_dict(landmarks_avgs)
     graph["root"] = ["left_hip", "right_hip"]
@@ -230,7 +282,22 @@ def fix_pose_avg(landmarks_avgs, lengths:Dict[str, Dict[str, int]]):
     return j.blaze.dict_to_frame(new_frame)
 
 
-def fix_pose_avg_helper(root, graph, frame, lengths, new_frame):
+def fix_pose_avg_helper(root: str,
+                        graph: Dict[str, List[str]],
+                        frame: Dict[str, np.ndarray],
+                        lengths: Dict[str, Dict[str, float]],
+                        new_frame: Dict[str, np.ndarray]) -> None:
+    """Fixes pose lengths using BFS starting with root joint.
+    Looks at all downstream joints as defind by graph.
+
+    Args:
+        root (str): Root to start at.
+        graph (Dict[str, List[str]]): Directed graph with connections between joints.
+        Direction indicates which joints are downstream.
+        frame (Dict[str, np.ndarray]): Starting averaged positions.
+        lengths (Dict[str, Dict[str, float]]): Desired lengths between joints.
+        new_frame (Dict[str, np.ndarray]): Frame to put updated positions into.
+    """
     visited = set()
     parents = {root: None}
 
