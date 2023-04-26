@@ -47,12 +47,60 @@ def unpack_frame(results):
 
     return curr_frame_raw, curr_wframe_raw
 
+def capture_video(window_name: str="capture",
+            video_file_name: str="last_recording",
+            stream: Union[int, str]=0,
+            fps=20):
+
+    cap = cv2.VideoCapture(stream)
+    width  = int(cap.get(3))   # float `width`
+    height = int(cap.get(4))  # float `height`
+    fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+    path = f"{video_file_name}.avi"
+
+    out = cv2.VideoWriter(path, fourcc, fps, (width, height))
+    frames = 0
+    import time
+    start = time.time()
+    frame_list = []
+    try:
+        while(cap.isOpened()):
+            ret, frame = cap.read()
+            if ret==True:
+
+                # write the flipped frame
+                # out.write(frame)
+                frame_list.append(frame)
+                frames += 1
+
+                # cv2.imshow('frame',frame)
+                # if cv2.waitKey(1) & 0xFF == 27:
+                #     break
+            else:
+                break
+    except KeyboardInterrupt:
+        pass
+    end = time.time()
+    print(frames)
+    print((end - start))
+    print(frames / (end - start))
+    for frame in frame_list:
+        frame = cv2.flip(frame,1)
+        out.write(frame)
+
+    out.release()
+    cap.release()
+    cv2.destroyAllWindows()
+    return path
+
+
 
 def capture(window_name: str="blaze",
             file_name: str="last_recording",
             model_complexity: int=1,
             return_image: bool=False,
-            stream: Union[int, str]=0) \
+            stream: Union[int, str]=0,
+            save_video=True) \
     -> Generator[Union[Tuple[List, List], Tuple[List, List, np.ndarray]]]:
     """Yields landmarks from blazepose from a video steam.
 
@@ -83,6 +131,8 @@ def capture(window_name: str="blaze",
         Generator[Union[Tuple[List, List], Tuple[List, List, np.ndarray]]]: landmarks, wlandmarks, 
         and optionally the image.
     """
+    if not isinstance(stream, int):
+        save_video = False
 
     output_extension = '.csv'
     landmark_file_name = f"{file_name}_landmarks{output_extension}"
@@ -95,12 +145,25 @@ def capture(window_name: str="blaze",
     mp_pose = mp.solutions.pose
     cap = cv2.VideoCapture(stream)
 
+    if save_video:
+        width  = int(cap.get(3))   # float `width`
+        height = int(cap.get(4))  # float `height`
+        fps = cap.get(5) 
+        print(fps)
+        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+        path = f"{file_name}.avi"
+
+        out = cv2.VideoWriter(path, fourcc, fps, (width, height))
+    import time
+    frames = 0
+
     with mp_pose.Pose(
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5,
             model_complexity=model_complexity
     ) as pose:
         cv2.imshow(window_name, np.zeros([2,2]))
+        start = time.time()
         while cap.isOpened():
             success, image = cap.read()
             if not success:
@@ -129,9 +192,12 @@ def capture(window_name: str="blaze",
                 landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
             )
             image = cv2.flip(image, 1) 
+            if save_video:
+                out.write(image)
             cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
+            frames += 1
 
-            if cv2.waitKey(5) & 0xFF == 27:
+            if cv2.waitKey(1) & 0xFF == 27:
                 break
 
             if return_image:
@@ -139,9 +205,15 @@ def capture(window_name: str="blaze",
             else:
                 cv2.imshow(window_name, image)
                 yield landmark, wlandmark
+    end = time.time()
+    print(frames)
+    print(end-start)
+    print(frames / (end-start))
 
     landmark_file.close()
     wlandmark_file.close()
+    if save_video:
+        out.release()
     cap.release()
     cv2.destroyWindow(window_name)
     # Hack to make sure the window closes quickly
@@ -329,5 +401,6 @@ def fix_pose_avg_helper(root: str,
 
 
 if __name__ == "__main__":
-    for landmark, wlandmark in capture():
-        continue
+    
+    for landmark, wlandmark in capture(stream=capture_video(video_file_name="p1"), file_name="p1", return_image=False):
+        pass
