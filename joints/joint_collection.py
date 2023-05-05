@@ -203,25 +203,24 @@ class JointCollection():
         return math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2)
      
 
-    def rotate_with_scipy(self, a, b, rotation, dict_name=None):
+    def rotate_with_scipy(self, a, b, rotation):
         # Save current angles
         angles = self.get_downstream_angles(b)
 
-        # get 
-        #old_pos = copy.deepcopy(self.pos)
+        # translate b to origin
         vec_to_rotate = self.pos[b] - self.pos[a]
-
+        # save xyz of b before any rotation
         b_before_rotation = self.pos[b]
-
+        # rotate b around origin and translate it back to have a's xyz as origin
         self.pos[b] = rotate_scipy(vec_to_rotate, rotation) + self.pos[a]
 
+        # get the translation vector b's rotation
         translation = self.pos[b] - b_before_rotation
 
-        #print (f"rotating {b} around {a}")
-
-        # Using the saved old positions t get base joint distance, and and translate
-        # real position of previous joint by difference of the base model      
+        # TODO !! If someone wants to optmize this, make a scipy downstream method
+        #   so you don't have to deal with this list search
         visited = []
+        # real position of previous joint by difference of the base model      
         for angle, _ in angles.items():
             joint1, joint2, joint3 = angle
             
@@ -230,26 +229,8 @@ class JointCollection():
                 continue
             visited.append(joint3)
             
-            self.pos[joint3] = self.pos[joint3] + translation#relative_movement + self.pos[joint2]
-
-            # this SHOULD NOT BE AN 0 VECTOR!
-            """joint_at_origin = old_pos[joint3] - old_pos[joint2]
-            if joint_at_origin[0] == 0 and joint_at_origin[1] == 0 and joint_at_origin[2] == 0:
-                print (f"ERROR: when attempting to rotate {b} around {a}. The current joint is {joint3}\n     Something probably went wrong, encountered a 0 position vector")
-                print (f"   Dict name is: {dict_name}")
-                continue
-            else:
-            """
-                #b_distance = self.get_euc_distance(self.pos[joint2], self.pos[joint3])
-                #print (f"   Before Distance of  {joint2} to {joint3} is { } ")
-                #relative_movement = rotate_scipy(joint_at_origin, rotation)
-                #a_distance = self.get_euc_distance(self.pos[joint2], self.pos[joint3])
-                #print (f"   After Distance of  {joint2} to {joint3} is {self.get_euc_distance(self.pos[joint2], self.pos[joint3])}")
-                #if abs(a_distance - b_distance) > .1:
-                #    print (f"   Distance difference before and after rotation for {joint3} around {a} is {a_distance - b_distance}")
-            #print (f"vec is {vec}")
-            #print (f"rotation is {rotation.as_euler('zyx',degrees=True)}")
-        #print ("___________________")
+            # translating downsteam joints by movement of joint b
+            self.pos[joint3] = self.pos[joint3] + translation
 
 
     def set_about_lcs(self, a, b, rot_axis, axis2, theta, proj_axis=False):
