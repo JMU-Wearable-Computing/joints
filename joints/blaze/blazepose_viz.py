@@ -81,7 +81,9 @@ def capture_video(window_name: str="capture",
     except KeyboardInterrupt:
         pass
     end = time.time()
-    print(f"fps {frames / (end - start)}")
+    print(frames)
+    print((end - start))
+    print(frames / (end - start))
     for frame in frame_list:
         frame = cv2.flip(frame,1)
         out.write(frame)
