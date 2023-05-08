@@ -2,7 +2,7 @@ from typing import List, Tuple, Dict, Union
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation as R
-from collections.abc import Sequence
+import collections
 import math
 import copy
 
@@ -172,7 +172,7 @@ class JointCollection():
         if joints in self.pos.keys():
             return self.pos[joints]
 
-        if isinstance(joints, Sequence):
+        if isinstance(joints, collections.Sequence):
             assert len(joints) == 3
             vec1 = self.pos[joints[0]] - self.pos[joints[1]]
             vec2 = self.pos[joints[2]] - self.pos[joints[1]]
@@ -348,7 +348,7 @@ class Joint():
         self.jc = jc
 
         if joints is not None:
-            assert isinstance(joints, Sequence)
+            assert isinstance(joints, collections.Sequence)
             assert len(joints) == 3
             self.joints = joints
     
@@ -425,11 +425,11 @@ class BallAndSocketJoint(Joint):
         return axis3 / norm(axis3)
 
     def standardize_vec(self, vec):
-        if (isinstance(vec, Sequence)
+        if (isinstance(vec, collections.Sequence)
             and isinstance(vec[0], str)
             and len(vec) == 2):
             return self.p_to_vec(*vec) 
-        elif (isinstance(vec, Sequence) or isinstance(vec, np.ndarray)) and len(vec) == 3:
+        elif (isinstance(vec, collections.Sequence) or isinstance(vec, np.ndarray)) and len(vec) == 3:
             return vec
         else:
             raise Exception(f"vector not in correct fromat: {vec}")
