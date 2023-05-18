@@ -2,9 +2,8 @@ from typing import List, Tuple, Dict, Union
 import numpy as np
 from numpy.linalg import norm
 from scipy.spatial.transform import Rotation as R
-import collections
+from collections.abc import Sequence
 import math
-import copy
 
 def get_proj_to_plane(vec, normal):
     normal = normal / norm(normal)
@@ -41,13 +40,6 @@ def rotate_scipy (vec: np.ndarray, rotation):
         the position vector rotated by rotation
     """
     return np.dot(vec, rotation.as_matrix())
-    q1 = R.from_quat([*vec, 0])
-    q2 = rotation
-    q2_conj = R.from_quat(q2.as_quat() * np.array([-1, -1, -1, 1]))
-
-    q3 = q2 * q1 * q2_conj
-
-    return q3.as_quat()[:3] * norm(vec)
 
 def rotate_vector(vec: np.ndarray, axis: np.ndarray, theta: int):
     axis = axis / norm(axis)
@@ -172,7 +164,7 @@ class JointCollection():
         if joints in self.pos.keys():
             return self.pos[joints]
 
-        if isinstance(joints, collections.Sequence):
+        if isinstance(joints, Sequence):
             assert len(joints) == 3
             vec1 = self.pos[joints[0]] - self.pos[joints[1]]
             vec2 = self.pos[joints[2]] - self.pos[joints[1]]
@@ -201,9 +193,19 @@ class JointCollection():
             self.pos[joint3] = relative + self.pos[a]
     def get_euc_distance(self, a, b):
         return math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2)
-     
 
     def rotate_with_scipy(self, a, b, rotation):
+        """
+        Rotates joint b around joint b by rotation
+        _____________________________________
+        Args:
+            a: 
+                a string representing the dict key of joint a
+            b: 
+                a tring representing a dict key of joint b
+            rotation: 
+                an scipy rotation describing the rotatation of b around a
+        """
         # Save current angles
         angles = self.get_downstream_angles(b)
 
@@ -348,7 +350,7 @@ class Joint():
         self.jc = jc
 
         if joints is not None:
-            assert isinstance(joints, collections.Sequence)
+            assert isinstance(joints, Sequence)
             assert len(joints) == 3
             self.joints = joints
     
@@ -425,11 +427,11 @@ class BallAndSocketJoint(Joint):
         return axis3 / norm(axis3)
 
     def standardize_vec(self, vec):
-        if (isinstance(vec, collections.Sequence)
+        if (isinstance(vec, Sequence)
             and isinstance(vec[0], str)
             and len(vec) == 2):
             return self.p_to_vec(*vec) 
-        elif (isinstance(vec, collections.Sequence) or isinstance(vec, np.ndarray)) and len(vec) == 3:
+        elif (isinstance(vec, Sequence) or isinstance(vec, np.ndarray)) and len(vec) == 3:
             return vec
         else:
             raise Exception(f"vector not in correct fromat: {vec}")
